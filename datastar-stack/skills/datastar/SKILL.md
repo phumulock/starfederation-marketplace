@@ -23,6 +23,27 @@ The same stream can emit any mix of those two events, then close. Or it can stay
 
 That's it. Everything else is sugar.
 
+## The Tao of Datastar
+
+The maintainers publish ["The Tao of Datastar"](https://data-star.dev/guide/the_tao_of_datastar) — opinions on how to build with the framework. These aren't mechanics; they're design taste, and they should shape *which* solution you propose before any code is written. Full prose in `references/tao.md`.
+
+1. **State lives in the backend.** The backend is the source of truth. The frontend is user-exposed and untrusted.
+2. **Start with the defaults.** Before changing any default option, stop and ask how you got there.
+3. **Backend drives the frontend** by patching elements and signals — not the reverse.
+4. **Signals sparingly.** Use signals for user interaction (toggles, form binding) and for sending new state *to* the backend. Don't mirror backend state in signals — fetch it.
+5. **In morph we trust.** Send large/"fat" DOM chunks (up to and including `<html>`); morph diffs efficiently. Don't hand-tune surgical updates.
+6. **SSE for responses.** Patch elements, patch signals, and execute scripts all ride one `text/event-stream`. There's no benefit to another content type for Datastar responses.
+7. **Compress streams.** Brotli on morphed HTML streams routinely hits ~200:1.
+8. **Use your backend templating language.** Keep HTML DRY there, not in JS.
+9. **Plain `<a>` for navigation.** Page navigation hasn't changed in 30 years. Use the View Transition API for polish.
+10. **Let the browser own history.** Each page is a resource. Manual history management is added complexity for nothing.
+11. **CQRS.** One long-lived read stream for server-pushed updates, short-lived writes for actions. This is what makes real-time collab simple in Datastar.
+12. **`data-indicator` for loading.** Under CQRS you'll often want to *manually* show the indicator on action and hide it when the patched DOM arrives.
+13. **Don't do optimistic updates.** They deceive the user. Show a loading indicator and confirm from the backend.
+14. **Accessibility is yours.** Datastar stays out of the way — semantic HTML, ARIA, keyboard, screen readers.
+
+When the user's instinct conflicts with the Tao (e.g. "let's keep this state on the client to avoid a roundtrip", "let's optimistically update the cart"), don't silently override — flag the Tao position, then defer to the user's call.
+
 ## When to use this skill
 
 Use this skill when:
@@ -155,6 +176,7 @@ The reference files are loaded into context only when needed — don't read them
 - **`references/sse-events.md`** — you're emitting raw SSE without an SDK, or debugging a wire-level problem.
 - **`references/go-sdk.md`** — you're writing the Go backend and need method signatures, option types, or full handler examples.
 - **`references/patterns.md`** — the user describes a recognizable pattern (active search, infinite scroll, optimistic update, live validation, lazy load, server-pushed real-time). The reference has battle-tested templates that are faster than re-deriving from primitives.
+- **`references/tao.md`** — the user is making a design call where Datastar's opinions are load-bearing (where state should live, whether to optimistically update, how to do navigation/history, when CQRS earns its keep). The reference has the maintainers' full prose on each principle.
 
 ## Installation snippet
 
