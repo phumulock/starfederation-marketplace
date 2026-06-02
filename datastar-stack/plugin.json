@@ -1,0 +1,9 @@
+{
+  "name": "datastar-stack",
+  "version": "0.1.0",
+  "description": "Datastar hypermedia framework (SSE-driven, signals-based) and Datastar Pro Rocket web components",
+  "author": {
+    "name": "phumulock"
+  },
+  "skills": "./skills/"
+}

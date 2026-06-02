@@ -1,0 +1,15 @@
+{
+  "name": "starfederation-marketplace",
+  "owner": {
+    "name": "phumulock"
+  },
+  "plugins": [
+    {
+      "name": "datastar-stack",
+      "description": "Datastar hypermedia framework (SSE-driven, signals-based) and Datastar Pro Rocket web components",
+      "version": "0.1.0",
+      "source": "./datastar-stack",
+      "category": "frontend"
+    }
+  ]
+}
