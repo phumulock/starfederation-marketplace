@@ -124,6 +124,8 @@ Datastar auto-reconnects with backoff if the connection drops.
 
 ## Optimistic UI with rollback
 
+> **Tao note:** The Datastar Tao (principle 13) argues *against* optimistic updates — they trade honesty for perceived speed. Default to a loading indicator that clears when the server-pushed patch arrives (see "Loading indicators" below). Reach for this pattern only when the user has explicitly chosen perceived snappiness over fidelity (e.g. a counter, a like button) and accepted the rollback UX. See `tao.md`.
+
 ```html
 <button data-on:click="$count++; @post('/inc')">+</button>
 <p data-text="$count"></p>
