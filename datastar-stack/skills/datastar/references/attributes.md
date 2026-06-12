@@ -8,7 +8,6 @@ Free-core attributes are listed first. Pro-only attributes are in their own sect
 
 - [Reactivity & display](#reactivity--display)
 - [Event listeners](#event-listeners)
-- [URL & browser](#url--browser)
 - [Lifecycle & escape hatches](#lifecycle--escape-hatches)
 - [Modifier syntax](#modifier-syntax)
 - [Modifier reference](#modifier-reference)
@@ -214,20 +213,6 @@ Modifiers: `__delay`, `__debounce`, `__throttle`.
 
 ---
 
-## URL & browser
-
-### `data-replace-url`
-
-Replaces `window.location` via `history.replaceState` based on a template-literal expression. No reload.
-
-```html
-<div data-replace-url="`/page/${$page}`"></div>
-```
-
-Use for keeping the URL in sync with pagination, tabs, or filter state when you don't want a full navigation.
-
----
-
 ## Lifecycle & escape hatches
 
 ### `data-init`
@@ -371,6 +356,7 @@ The following require a **Datastar Pro** commercial license. They are not in the
 | `data-persist` | Persist signals to localStorage / sessionStorage |
 | `data-scroll-into-view` | Scroll element into view (many modifiers) |
 | `data-view-transition` | Set `view-transition-name` reactively |
+| `data-replace-url` | Replace `window.location` via `history.replaceState` from a template-literal expression, no reload (`data-replace-url="`/page/${$page}`"`) |
 | `data-query-string` | Sync URL query string with signals (with history mode) |
 
 If the user has confirmed they have Pro (or the project already uses these), then these are available — otherwise prefer free-core alternatives:
@@ -381,4 +367,4 @@ If the user has confirmed they have Pro (or the project already uses these), the
 | `data-match-media` | A `data-effect` with `window.matchMedia` listener |
 | `data-on-raf` / `data-on-resize` | A `data-effect` registering the relevant listener |
 | `data-animate` | CSS transitions triggered by `data-class` toggles |
-| `data-query-string` | `data-replace-url` (URL sync, no auto-bind) |
+| `data-replace-url` / `data-query-string` | A `data-effect` calling `history.replaceState`, or sync the URL server-side and patch signals on load |

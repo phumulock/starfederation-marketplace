@@ -20,8 +20,8 @@ import "github.com/starfederation/datastar-go/datastar"
 
 Reads the current client signals into a Go struct (or `map[string]any`).
 
-- For `GET` requests, signals are parsed from the `datastar` query parameter.
-- For `POST`/`PUT`/`PATCH`/`DELETE`, signals are parsed from the JSON request body.
+- For `GET` and `DELETE` requests, signals are parsed from the `datastar` query parameter.
+- For `POST`/`PUT`/`PATCH`, signals are parsed from the JSON request body.
 
 ```go
 type Store struct {
@@ -38,9 +38,9 @@ if err := datastar.ReadSignals(r, &s); err != nil {
 
 The `json:"…"` tags must match the **client-side signal names exactly** (after Datastar's auto-camelCase conversion). If the client has `$userName`, the field tag is `json:"userName"`.
 
-### `datastar.NewSSE(w http.ResponseWriter, r *http.Request) *SSE`
+### `datastar.NewSSE(w http.ResponseWriter, r *http.Request, opts ...SSEOption) *ServerSentEventGenerator`
 
-Opens the SSE response. Sets `Content-Type`, `Cache-Control`, and `Connection` headers; flushes the response writer. Returns an `*SSE` handle for the rest of the handler.
+Opens the SSE response. Sets `Content-Type`, `Cache-Control`, and `Connection` headers; flushes the response writer. Returns a `*ServerSentEventGenerator` handle for the rest of the handler. (Examples below use the receiver variable name `sse`.)
 
 ```go
 sse := datastar.NewSSE(w, r)
@@ -48,9 +48,11 @@ sse := datastar.NewSSE(w, r)
 
 Call this **once** per handler. Subsequent calls on the same `w` will conflict with the streaming response.
 
-### `(*SSE).PatchElements(html string, opts ...PatchElementOption)`
+> **All emitter methods return `error`.** `PatchElements`, `MarshalAndPatchSignals`, `PatchSignals`, `RemoveElement`, `ExecuteScript`, and `Redirect` each return an `error` (a write/flush failure, usually a disconnected client) and accept trailing variadic options. The examples below discard the error for brevity; in production, check it — once a write fails the stream is dead and you should stop emitting.
 
-Emits a `datastar-patch-elements` event. Default mode is `outer` (morph by id of the top-level element in `html`).
+### `(*ServerSentEventGenerator).PatchElements(elements string, opts ...PatchElementOption) error`
+
+Emits a `datastar-patch-elements` event. Default mode is `outer` (morph by id of the top-level element in `elements`).
 
 ```go
 sse.PatchElements(`<div id="results"><ul><li>match</li></ul></div>`)
@@ -61,15 +63,15 @@ Common options:
 | Option | Effect |
 |---|---|
 | `datastar.WithSelector("#list")` | CSS selector target. Required for `inner`, `replace`, `append`, `prepend`, `before`, `after`, `remove`. |
-| `datastar.WithMode(datastar.ElementsModeInner)` | Replace innerHTML of selector. |
-| `datastar.WithMode(datastar.ElementsModeAppend)` | Append into selector. |
-| `datastar.WithMode(datastar.ElementsModeRemove)` | Delete element at selector. |
-| `datastar.WithUseViewTransition(true)` | Wrap the morph in a View Transition. |
-| `datastar.WithNamespace("svg")` | For SVG/MathML inserts. |
+| `datastar.WithMode(datastar.ElementPatchModeInner)` | Replace innerHTML of selector. |
+| `datastar.WithMode(datastar.ElementPatchModeAppend)` | Append into selector. |
+| `datastar.WithMode(datastar.ElementPatchModeRemove)` | Delete element at selector. |
+| `datastar.WithUseViewTransitions(true)` | Wrap the morph in a View Transition. |
+| `datastar.WithNamespace(datastar.NamespaceSVG)` | For SVG/MathML inserts (`NamespaceHTML`, `NamespaceSVG`, `NamespaceMathML`). |
 
-Other `Mode` constants: `ElementsModeOuter` (default), `ElementsModePrepend`, `ElementsModeBefore`, `ElementsModeAfter`, `ElementsModeReplace`.
+Other `ElementPatchMode` constants: `ElementPatchModeOuter` (default), `ElementPatchModePrepend`, `ElementPatchModeBefore`, `ElementPatchModeAfter`, `ElementPatchModeReplace`. There are also mode sugar options that skip the `WithMode(...)` wrapper — `WithModeInner()`, `WithModeAppend()`, `WithModeRemove()`, etc.
 
-### `(*SSE).RemoveElement(selector string)`
+### `(*ServerSentEventGenerator).RemoveElement(selector string, opts ...PatchElementOption) error`
 
 Shorthand for a `mode: remove` patch:
 
@@ -77,9 +79,9 @@ Shorthand for a `mode: remove` patch:
 sse.RemoveElement("#notification")
 ```
 
-Equivalent to `sse.PatchElements("", datastar.WithSelector("#notification"), datastar.WithMode(datastar.ElementsModeRemove))`.
+Equivalent to `sse.PatchElements("", datastar.WithSelector("#notification"), datastar.WithMode(datastar.ElementPatchModeRemove))`.
 
-### `(*SSE).MarshalAndPatchSignals(signals any)`
+### `(*ServerSentEventGenerator).MarshalAndPatchSignals(signals any, opts ...PatchSignalsOption) error`
 
 JSON-encodes `signals` and emits a `datastar-patch-signals` event.
 
@@ -110,7 +112,9 @@ sse.MarshalAndPatchSignals(map[string]any{
 })
 ```
 
-### `(*SSE).ExecuteScript(script string)`
+If you already have raw JSON bytes, use `PatchSignals(signals []byte, opts ...PatchSignalsOption) error` directly. There's also `MarshalAndPatchSignalsIfMissing` for "don't clobber existing values" (the SDK side of the wire `onlyIfMissing` flag).
+
+### `(*ServerSentEventGenerator).ExecuteScript(script string, opts ...ExecuteScriptOption) error`
 
 Convenience for injecting a `<script>` into `<body>` via `PatchElements`. The browser executes it on insertion.
 
@@ -118,7 +122,7 @@ Convenience for injecting a `<script>` into `<body>` via `PatchElements`. The br
 sse.ExecuteScript(`alert('Saved!')`)
 ```
 
-### `(*SSE).Redirect(path string)`
+### `(*ServerSentEventGenerator).Redirect(path string, opts ...ExecuteScriptOption) error`
 
 Triggers a client-side navigation. Implemented as a script execution.
 
@@ -264,7 +268,7 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
     }
     sse.PatchElements(b.String(),
         datastar.WithSelector("#feed"),
-        datastar.WithMode(datastar.ElementsModeAppend))
+        datastar.WithMode(datastar.ElementPatchModeAppend))
 
     // Replace the sentinel with one pointing at the next page (or remove it)
     if hasMore {
@@ -373,7 +377,7 @@ for chunk := range streamFromUpstream() {
         `<span class="chunk">%s</span>`,
         html.EscapeString(chunk)),
         datastar.WithSelector("#output"),
-        datastar.WithMode(datastar.ElementsModeAppend))
+        datastar.WithMode(datastar.ElementPatchModeAppend))
 }
 
 sse.PatchElements(`<div id="status">Done.</div>`)

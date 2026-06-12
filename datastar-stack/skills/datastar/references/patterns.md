@@ -115,7 +115,7 @@ for event := range eventBus.Subscribe() {
     case Activity:
         sse.PatchElements(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(e.Text)),
             datastar.WithSelector("#activity"),
-            datastar.WithMode(datastar.ElementsModePrepend))
+            datastar.WithMode(datastar.ElementPatchModePrepend))
     }
 }
 ```
@@ -251,6 +251,8 @@ Server returns `<div id="modal-content">…form…</div>`.
 
 `data-replace-url` keeps the URL in sync so refresh / share-link / back-button works (you'd hydrate from `?tab=` on initial render).
 
+> **Pro note:** `data-replace-url` is a **Datastar Pro** attribute — it silently does nothing in the free core. On free core, drive the URL from a `data-effect="history.replaceState(null, '', '/dashboard?tab=' + $tab)"` instead, or render the canonical URL server-side.
+
 For lazy-loaded tab contents, swap `data-show` for an `@get` on click that targets a `#tab-content` region.
 
 ## Polling
@@ -297,7 +299,7 @@ for chunk := range llmStream(s.Prompt) {
     sse.PatchElements(
         fmt.Sprintf(`<span>%s</span>`, html.EscapeString(chunk)),
         datastar.WithSelector("#output"),
-        datastar.WithMode(datastar.ElementsModeAppend))
+        datastar.WithMode(datastar.ElementPatchModeAppend))
 }
 ```
 

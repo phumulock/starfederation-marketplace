@@ -20,7 +20,7 @@ Actions are functions invoked from inside Datastar expressions using `@name(...)
 | `@post(url, options?)` | Creates / arbitrary side effects. Signals as JSON body. |
 | `@put(url, options?)` | Replace / idempotent updates. JSON body. |
 | `@patch(url, options?)` | Partial updates. JSON body. |
-| `@delete(url, options?)` | Deletes. JSON body. |
+| `@delete(url, options?)` | Deletes. Signals serialized into the URL query string (like `@get`). |
 
 ```html
 <button data-on:click="@post('/save')">Save</button>
@@ -32,10 +32,10 @@ All five expect the server to respond with an SSE stream of `datastar-patch-elem
 
 ### What gets sent
 
-By default, **all signals** in the store are sent with every HTTP action call. Behavior depends on method:
+By default, every signal **except those whose name begins with an underscore** is sent with every HTTP action call (the default filter is `/(^_|\._)/`, so the `$_loading` / `$_fetching` "local UI state" convention is already excluded for you — you don't need a manual `exclude: /^_/` to drop them). Behavior depends on method:
 
-- `@get` — signals are flattened into the query string as `datastar=<json>` (or expanded keys, depending on backend SDK).
-- `@post`, `@put`, `@patch`, `@delete` — signals are JSON in the request body, `Content-Type: application/json`.
+- `@get`, `@delete` — signals are flattened into the query string as `datastar=<json>` (or expanded keys, depending on backend SDK).
+- `@post`, `@put`, `@patch` — signals are JSON in the request body, `Content-Type: application/json`.
 
 The Go SDK's `datastar.ReadSignals(r, &store)` knows the difference and unmarshals from either side.
 
@@ -57,13 +57,15 @@ The second argument to any HTTP action is an options object. All keys are option
   },
   openWhenHidden: false,        // keep SSE open when tab is hidden
   requestCancellation: 'auto',  // 'auto' | 'cleanup' | 'disabled' | AbortController
-  retry: true,                  // auto-reconnect on disconnect
+  retry: 'auto',                // string enum, not a boolean: 'auto' (default) | 'error' | 'always' | 'never'
   retryInterval: 1000,          // ms before first retry
   retryScaler: 2,               // multiply interval after each fail
-  retryMaxWait: 30000,          // ms cap on retry interval
+  retryMaxWaitMs: 10000,        // ms cap on retry interval
   retryMaxCount: 5              // give up after this many attempts
 })
 ```
+
+> Retry option names/defaults track the `datastar.js` version you've pinned (older builds exposed `retryMaxWait`/`30000`; current source uses `retryMaxWaitMs`/`10000`). Confirm against your bundle if you depend on exact values.
 
 ### Key options explained
 
@@ -79,11 +81,11 @@ Regex match against signal names. Both are optional. If `include` is set, only m
 <!-- Only send cart-related signals -->
 <button data-on:click="@post('/checkout', {filterSignals: {include: /^cart/}})">
 
-<!-- Send everything except local UI state (underscore-prefixed convention) -->
-<button data-on:click="@post('/save', {filterSignals: {exclude: /^_/}})">
+<!-- Drop a specific sensitive signal (underscore-prefixed signals are already excluded by default) -->
+<button data-on:click="@post('/save', {filterSignals: {exclude: /^authToken$/}})">
 ```
 
-Use this for sensitive state (auth tokens), large state (don't ship the full app store to every endpoint), or local UI state (`$_fetching`, `$_modalOpen`).
+Use this for sensitive state (auth tokens) or large state (don't ship the full app store to every endpoint). Local UI state under the `$_fetching` / `$_modalOpen` underscore convention is already dropped by the default filter — you only need `exclude` for signals that *don't* follow that convention.
 
 **`openWhenHidden: true`**
 

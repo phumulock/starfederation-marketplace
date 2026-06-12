@@ -15,7 +15,7 @@ Two halves, one stream:
 
 1. **Frontend signals.** Every `data-signals`, `data-bind`, `data-computed` (and implicitly, anything you reference with `$name`) creates a reactive signal. Attributes like `data-text`, `data-show`, `data-class`, `data-attr`, `data-effect` re-evaluate whenever their referenced signals change. This is Alpine, basically.
 
-2. **Backend over SSE.** Any DOM event handler can invoke an action like `@get('/path')` or `@post('/save')`. Datastar serializes **all current signals** and sends them with the request (JSON body for POST/PUT/PATCH/DELETE, query string for GET). The server responds with an **SSE stream** that interleaves two event types:
+2. **Backend over SSE.** Any DOM event handler can invoke an action like `@get('/path')` or `@post('/save')`. Datastar serializes **the current signals** (everything except underscore-prefixed ones, by default) and sends them with the request (JSON body for POST/PUT/PATCH, query string for GET/DELETE). The server responds with an **SSE stream** that interleaves two event types:
    - `datastar-patch-elements` — patch the DOM. Default mode is `outer` morph by `id`. Other modes: `inner`, `replace`, `append`, `prepend`, `before`, `after`, `remove`.
    - `datastar-patch-signals` — deep-merge a JSON object into the client signals store. Setting a key to `null` removes it.
 
@@ -151,7 +151,7 @@ These trip everyone up — internalize them before writing code:
 
 2. **IDs are load-bearing.** Default patch mode is `outer`, which finds the existing element by `id`. Top-level elements in your patched HTML need stable ids that match the live DOM, or the morph silently lands nowhere useful. If you don't want id-matching, set an explicit `selector` and a different `mode`.
 
-3. **All signals are sent on every request.** This is convenient but means anything in the store leaks to every endpoint. Filter with `{filterSignals: {include: /pattern/}}` for sensitive or large state.
+3. **Signals are sent on every request.** Every signal *except* underscore-prefixed ones (the default filter excludes `/(^_|\._)/`) is sent to every endpoint — convenient, but non-underscore state in the store still leaks everywhere. Filter with `{filterSignals: {include: /pattern/}}` for sensitive or large state; use the `$_local` convention for UI-only signals you never want sent.
 
 4. **Implicit signal creation.** Referencing `$tpyo` in any expression silently creates a new signal with value `""`. There's no compile-time check. Use `<pre data-json-signals></pre>` while developing to see the live store.
 
@@ -191,4 +191,4 @@ For production, self-host the same file. There's no advertised first-party npm p
 
 ## Pro features (commercial license)
 
-These attributes/actions require a Datastar Pro license and **won't work in the free core**: `data-persist`, `data-animate`, `data-custom-validity`, `data-match-media`, `data-on-raf`, `data-on-resize`, `data-scroll-into-view`, `data-view-transition`, `data-query-string`, `@clipboard`, `@fit`, `@intl`. Don't suggest them as solutions to a free-core problem; if the user has Pro, they'll say so or the code will already reference these.
+These attributes/actions require a Datastar Pro license and **won't work in the free core**: `data-persist`, `data-animate`, `data-custom-validity`, `data-match-media`, `data-on-raf`, `data-on-resize`, `data-scroll-into-view`, `data-view-transition`, `data-replace-url`, `data-query-string`, `@clipboard`, `@fit`, `@intl`. Don't suggest them as solutions to a free-core problem; if the user has Pro, they'll say so or the code will already reference these.
