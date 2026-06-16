@@ -151,6 +151,35 @@ See `references/examples.md` for full source of each:
 - **List rendering** — `array(object({...}))` prop + `data-for` template.
 - **SVG content** — `svg` tagged template inside `html`.
 - **Slots + manifest** — `mode: 'open'`, `<slot>` elements, `manifest` metadata, `publishRocketManifests`.
+- **Server-authoritative flow** — component→backend via bubbling `CustomEvent` bridged with `data-on:` → `@post`; backend→component via SSE-morphed child elements + a `serverUpdateTime` date prop. (Modeled on the official `rocket_flow` example.)
+
+## Talking to a Datastar backend
+
+Rocket components integrate with a Go (or any) backend through **Datastar**, not through their own fetch plumbing. There are two directions, and the canonical example (`data-star.dev/examples/rocket_flow`, "a Datastar-powered React Flow where the server owns the graph state") uses both:
+
+**Outbound (component → server): dispatch a CustomEvent, bridge it with `data-on:`.** The component emits a normal DOM event; the *host page* catches it with a Datastar `data-on:` handler that fires an action. Keep the event `bubbles: true, composed: true` so it crosses Shadow DOM and reaches the host.
+
+```javascript
+// inside the component
+host.dispatchEvent(new CustomEvent('flow-node-drag-end', {
+  detail: { node }, bubbles: true, composed: true,
+}))
+```
+```html
+<!-- in the page markup -->
+<flow-container
+  data-on:flow-node-drag-end="@post('/flow/nodes', { body: evt.detail })">
+  …
+</flow-container>
+```
+
+This is the Rocket ↔ Datastar ↔ backend seam. Internal `@action()` calls (registered via `action(...)`) are for *within* the component; CustomEvents + `data-on:` are for crossing out to page-level Datastar and the server.
+
+**Inbound (server → component): morph child elements + bump a date prop.** Rather than streaming into signals, the server can stream authoritative state as **child elements** (e.g. `<flow-node>` / `<flow-edge>`) that Datastar morphs in, and bump a **`serverUpdateTime` date prop** so the component knows to re-read. Put **`data-ignore-morph`** on the host so Datastar's morphing doesn't clobber DOM the component builds imperatively (canvas, SVG, drag layers).
+
+**Signals are not mandatory.** Pick the inbound shape by the data:
+- **Scalars / flat reactive values** (a rate, a count, a flag) → page-global `$signals` patched over SSE, read in the template with single `$`; or instance `$$signals` for component-local state.
+- **Collections / graphs / lists the server owns** → child elements + morph + a `serverUpdateTime`-style date prop + bubbling events. The `rocket_flow` example uses **zero** signals this way — coordination is props + `CustomEvent`s + plain `Map`s in `onFirstRender`.
 
 ## Things that will catch you out
 
@@ -159,8 +188,9 @@ See `references/examples.md` for full source of each:
 - **Refs aren't ready in `setup`.** Use `onFirstRender` if you need `refs.foo`.
 - **Codecs run on attribute strings, not property assignments.** If JS code does `el.someProp = 'x'`, that bypasses the codec unless you wired `overrideProp`.
 - **`renderOnPropChange` default depends on shape.** If you have `setup` *and* it writes to `$$` in response to `observeProps`, you usually want `renderOnPropChange: false` and let signal reactivity drive UI updates. If you have no setup and your render reads `props.*` directly, leave it on. See `references/lifecycle.md`.
-- **Cleanup is not optional.** Custom elements can be moved across the document tree (which re-fires connect/disconnect) and removed without warning. Unsubscribe everything.
-- **The Pro bundle is required.** `import { rocket } from '/bundles/datastar-pro.js'`. The free `datastar.js` bundle does not include Rocket; load the Pro bundle only on pages that actually use Rocket. If the bundle is served from a binary via `go:embed` (or any embed/compile step), replacing the `.js` requires a **rebuild** to take effect — a watcher like `air` does this automatically, a plain prebuilt binary does not.
+- **Cleanup is not optional.** Custom elements can be moved across the document tree (which re-fires connect/disconnect) and removed without warning. Unsubscribe everything — every `setInterval`, listener, `requestAnimationFrame` loop, `MutationObserver`, `EventSource`, and in-flight `fetch` gets a matching `cleanup(...)`. (The official `rocket_flow` example pairs every observer/listener with cleanup — match that bar, including per-frame animation loops.)
+- **`data-ignore-morph` protects imperative DOM.** If your component builds DOM imperatively in `onFirstRender` (canvas, SVG, drag layers) on a host that the server also morphs over SSE, put `data-ignore-morph` on the host so Datastar's morphing doesn't wipe what you built.
+- **The Pro bundle is required.** `import { rocket } from '/bundles/datastar-pro.js'` — or a bare `import { rocket } from 'datastar'` when the page uses an import map (as the official examples do). The free `datastar.js` bundle does not include Rocket; load the Pro bundle only on pages that actually use Rocket. If the bundle is served from a binary via `go:embed` (or any embed/compile step), replacing the `.js` requires a **rebuild** to take effect — a watcher like `air` does this automatically, a plain prebuilt binary does not.
 
 ## Reference files
 

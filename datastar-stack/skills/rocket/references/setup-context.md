@@ -86,6 +86,21 @@ setup: ({ $$, props, observeProps }) => {
 
 The `changes` argument is an object mapping changed prop names to their previous values — useful for diff logic.
 
+**Alternative — react to props inside an `effect`.** When the reaction is "touch these props, then do a side effect" (rather than re-seeding a `$$` signal), reading the props inside an `effect` is idiomatic too — the effect re-runs whenever any prop it read changes. The official `rocket_flow` example uses exactly this to re-emit an event on any prop change:
+
+```javascript
+setup: ({ effect, host, props }) => {
+  effect(() => {
+    props.source; props.target; props.label; props.animated  // subscribe
+    host.dispatchEvent(new CustomEvent('flow-edge-update', {
+      detail: snapshot(), bubbles: true, composed: true,
+    }))
+  })
+}
+```
+
+For attribute changes that don't come through codecs (e.g. raw `setAttribute` on the host), pair a `MutationObserver` with `cleanup(() => observer.disconnect())`.
+
 ### `overrideProp(name, getter, setter)`
 
 Wraps the host element's default property accessor. Both `getter` and `setter` are optional; the unwrapped behavior is passed in as `getDefault` / `setDefault`.

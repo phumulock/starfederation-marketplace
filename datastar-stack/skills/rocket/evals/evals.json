@@ -21,6 +21,13 @@
       "prompt": "Build a Rocket component <tag-input> that takes an `initial` attribute holding a JSON array of strings (default empty array) and an optional `placeholder` attribute (default 'Add tag…'). It renders the current tags as chips with an × button on each to remove that tag, plus a text input — when the user presses Enter, the typed value gets added to the list (trimmed, ignore empty strings, ignore duplicates). Also expose the current tag list so other JS on the page can read it via a `.tags` property on the element (e.g. `document.querySelector('tag-input').tags`).",
       "expected_output": "A rocket('tag-input', {...}) using: `array(string.trim)` or similar for the `initial` prop with `.default([])`, a $$tags signal, an action (e.g. @addTag()) wired to data-on:keydown.enter or similar, a data-for loop over $$tags to render chips, a remove handler that splices/filters, and defineHostProp('tags', { get: () => $$tags }) to expose tag list to outside code.",
       "files": []
+    },
+    {
+      "id": 4,
+      "name": "live-metric-with-backend-event",
+      "prompt": "Build a Rocket component <queue-monitor> for our dashboard. Our page already has Datastar page-global signals that the server patches over SSE: `$queueDepth` (a number) and `$paused` (a bool). The component should display the live queue depth and show a 'PAUSED' badge when paused — both must update reactively as the server patches those page-level signals. It also has a 'Drain' button; clicking it should tell our Go backend to drain the queue by POSTing to /queue/drain. Keep the component itself decoupled from the exact endpoint — the page wiring should decide what the click does.",
+      "expected_output": "A rocket('queue-monitor', {...}) that reads the page-global signals DIRECTLY with a single $ inside template expressions — e.g. data-text=\"$queueDepth\" and data-show=\"$paused\" (or data-class). It must NOT append __root inside expressions (no $queueDepth__root) and must NOT mirror globals into $$ via effects — single $ already resolves to page scope; $$ is only for instance-local state. The Drain button dispatches a bubbling, composed CustomEvent from the host (e.g. host.dispatchEvent(new CustomEvent('queue-drain-request', { bubbles: true, composed: true }))) rather than calling fetch/@post itself, so the host-page markup can bridge it with data-on:queue-drain-request=\"@post('/queue/drain')\". Decoupling the endpoint to page wiring via the CustomEvent + data-on: bridge is the key correctness point.",
+      "files": []
     }
   ]
 }

@@ -324,3 +324,72 @@ rocket('demo-imperative', {
 document.querySelector('demo-imperative').increment()
 console.log(document.querySelector('demo-imperative').current)
 ```
+
+## Server-authoritative flow — CustomEvent bridge + morphed children (no signals)
+
+Modeled on the official `rocket_flow` example: the **server owns the state**, Rocket provides the interactive surface. Two directions, **zero Datastar signals** — coordination is props + bubbling `CustomEvent`s + plain `Map`s.
+
+**Outbound** — the component dispatches a bubbling, composed `CustomEvent`; the host page bridges it to the backend with `data-on:` → `@post`. **Inbound** — the server streams authoritative `<flow-node>` children that Datastar morphs in, and bumps a `serverUpdateTime` date prop; `data-ignore-morph` protects the imperatively-built canvas.
+
+```javascript
+import { rocket } from 'datastar' // bare specifier via import map (or '/bundles/datastar-pro.js')
+
+// Parent: owns the canvas, listens for child register/update/remove events.
+rocket('flow-container', {
+  props: ({ array, number, date }) => ({
+    viewport: array(number, number, number).default([0, 0, 1]),
+    grid: number.min(1).default(32),
+    serverUpdateTime: date.default(() => new Date()),
+  }),
+  onFirstRender: ({ cleanup, host, observeProps, props, refs }) => {
+    const nodes = new Map()
+    const onRegister = (e) => { nodes.set(e.detail.id, e.detail); /* draw */ }
+    const onRemove   = (e) => { nodes.delete(e.detail.id); /* redraw */ }
+    host.addEventListener('flow-node-register', onRegister)
+    host.addEventListener('flow-node-remove', onRemove)
+    cleanup(() => {
+      host.removeEventListener('flow-node-register', onRegister)
+      host.removeEventListener('flow-node-remove', onRemove)
+    })
+    // Re-read children when the server bumps serverUpdateTime.
+    observeProps(() => { /* reconcile from props.serverUpdateTime */ }, 'serverUpdateTime')
+  },
+  render: ({ html }) => html`
+    <svg data-ref:svg role="presentation"></svg>
+    <slot hidden></slot>
+  `,
+})
+
+// Child: declarative element; emits its identity up, re-emits on any prop change.
+rocket('flow-node', {
+  props: ({ number, string }) => ({ x: number, y: number, label: string }),
+  setup: ({ cleanup, effect, host, props }) => {
+    host.style.display = 'none' // data lives in attributes; parent draws it
+    const snapshot = () => ({ id: host.id, x: props.x, y: props.y, label: props.label })
+    const emit = (name) =>
+      host.dispatchEvent(new CustomEvent(name, { detail: snapshot(), bubbles: true, composed: true }))
+
+    queueMicrotask(() => emit('flow-node-register'))
+    effect(() => { props.x; props.y; props.label; emit('flow-node-update') })
+
+    const observer = new MutationObserver(() => queueMicrotask(() => emit('flow-node-update')))
+    observer.observe(host, { attributes: true })
+    cleanup(() => { observer.disconnect(); emit('flow-node-remove') })
+  },
+})
+```
+
+Host-page markup — server-morphed children inside a bridged container:
+
+```html
+<flow-container
+  server-update-time="2026-06-15T13:52:54Z"
+  data-ignore-morph
+  data-on:flow-node-drag-end="@post('/flow/nodes', { body: evt.detail })">
+  <!-- these children are streamed/morphed in by the server over SSE -->
+  <flow-node id="start" x="40"  y="80"  label="Start"></flow-node>
+  <flow-node id="api"   x="240" y="80"  label="API"></flow-node>
+</flow-container>
+```
+
+Use this shape when the server owns a **collection** (graph/list/topology). For flat scalar values (a rate, a count, a flag) prefer signals instead — patch page-global `$signals` over SSE and read them in the template with single `$`.
