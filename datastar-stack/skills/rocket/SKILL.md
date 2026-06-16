@@ -37,7 +37,9 @@ A Rocket component has four moving parts, in order:
 
 4. **Cleanup** — `cleanup(fn)` registers a teardown that runs when the element disconnects. Use it for `clearInterval`, `AbortController.abort()`, websocket close, etc.
 
-**Key invariant: `$$name` inside a template is automatically rewritten to be instance-scoped.** Two `<demo-counter>` elements on the same page each get their own `$$count`. To reference a *page-global* Datastar signal from inside a Rocket template, append `__root`: `data-text="$globalCounter__root"`. This is the single most surprising thing about Rocket — write it down.
+**Key invariant: only `$$name` (double-dollar) inside a template is rewritten to instance scope.** Rocket maps `$$name` to a per-instance path under `$._rocket` (the instance segment comes from the host element's `id`, or a generated fallback when there's no `id`). Two `<demo-counter>` elements on the same page each get their own `$$count`. **A single-`$` global signal in a template expression is left untouched** — so to read a page-global from inside a Rocket template you just write it directly: `data-text="$globalCounter"`, `data-class:dark="$theme === 'dark'"`. There is **no** `__root` suffix needed for this, and `$global__root` inside an expression does *not* work (see "Things that will catch you out"). `__root` is a separate, narrower feature — a modifier on signal-name *attribute keys* for Shadow-DOM host children, covered below.
+
+> Verified against the official reference (data-star.dev/reference/rocket, "Rocket Scope Rewriting" + "`__root`"). Rocket is officially **in beta** — treat the API as still-moving and re-check the reference when something behaves unexpectedly.
 
 ## Workflow
 
@@ -130,7 +132,8 @@ Inside `render({ html, svg, props, host })`:
 - All standard Datastar attributes work: `data-bind`, `data-on:*`, `data-text`, `data-show`, `data-class:*`, `data-attr:*`, `data-style`, `data-computed:*`, `data-effect`, `data-ref:*`, `data-indicator:*`.
 - `<template data-if="expr">…</template>` plus `<template data-else-if="expr">` and `<template data-else>` — conditional rendering.
 - `<template data-for="$$items">…</template>` — loop, with `item` and `i` as default aliases. `data-for="letter in $$items"` for custom alias. `data-for="letter, row in $$items"` for alias + index.
-- **Scope opt-out:** `data-bind:name__root`, `$globalSignal__root`, `$$rewritten__root` (etc.) skip Rocket's `$$` rewriting and reference page-scope.
+- **Reading page-globals:** just use single `$` — `data-text="$globalRate"`. Rocket only rewrites `$$` (double-dollar); single `$` already means page scope. No suffix needed.
+- **`__root` (attribute keys only):** appended to a signal-name attribute *key* — `data-bind:name__root`, `data-computed:total__root`, `data-indicator:loading__root`, `data-ref:input__root` — to leave that attribute bound to the page-level signal instead of rescoping it. Only relevant for **authored host children inside `open`/`closed` (Shadow DOM) components**, which Rocket otherwise rescopes. Not usable inside expressions, and irrelevant in `mode: 'light'`.
 - For `<slot>` content, use `mode: 'open'` or `mode: 'closed'`. In `mode: 'light'`, slots are not available — children render in the host directly.
 
 See `references/templates.md` for the full directive list with examples.
@@ -152,17 +155,17 @@ See `references/examples.md` for full source of each:
 ## Things that will catch you out
 
 - **`$` vs `$$`.** Single dollar = global. Double dollar = instance. Mixing them up gives "works on one instance but not when there are two" bugs.
-- **`__root` is the escape hatch.** When you genuinely need a page signal inside a Rocket template (e.g. global theme), append `__root` so Rocket doesn't rewrite it.
+- **`__root` is an attribute-key modifier, not an expression suffix.** Writing `$global__root` *inside* a `data-text` / `data-class` / `data-show` expression does **not** read a page-global — it reads a (nonexistent) signal literally named `global__root` and silently renders empty (no console error). To read a page-global in an expression, use plain single-`$`: `data-text="$global"`. `__root` only goes on signal-name attribute *keys* (`data-bind:name__root`) to keep Shadow-DOM host children bound to page scope. *(This bites hard: the symptom is "reactive text/classes never update" and looks like a styling bug. If you mirrored page-globals into `$$` via `effect(() => { $$.x = $.x })` to work around it, that's unnecessary — read `$x` directly.)*
 - **Refs aren't ready in `setup`.** Use `onFirstRender` if you need `refs.foo`.
 - **Codecs run on attribute strings, not property assignments.** If JS code does `el.someProp = 'x'`, that bypasses the codec unless you wired `overrideProp`.
 - **`renderOnPropChange` default depends on shape.** If you have `setup` *and* it writes to `$$` in response to `observeProps`, you usually want `renderOnPropChange: false` and let signal reactivity drive UI updates. If you have no setup and your render reads `props.*` directly, leave it on. See `references/lifecycle.md`.
 - **Cleanup is not optional.** Custom elements can be moved across the document tree (which re-fires connect/disconnect) and removed without warning. Unsubscribe everything.
-- **The Pro bundle is required.** `import { rocket } from '/bundles/datastar-pro.js'`. The free `datastar.js` bundle does not include Rocket.
+- **The Pro bundle is required.** `import { rocket } from '/bundles/datastar-pro.js'`. The free `datastar.js` bundle does not include Rocket; load the Pro bundle only on pages that actually use Rocket. If the bundle is served from a binary via `go:embed` (or any embed/compile step), replacing the `.js` requires a **rebuild** to take effect — a watcher like `air` does this automatically, a plain prebuilt binary does not.
 
 ## Reference files
 
 - `references/codecs.md` — every codec, every chain, edge cases
 - `references/setup-context.md` — full signatures for `effect`, `observeProps`, `overrideProp`, `defineHostProp`, `action`, `render(overrides, ...args)`, `apply`
-- `references/templates.md` — `html` / `svg` semantics, every Datastar attribute usable inside Rocket, `data-if` / `data-for` directives, `__root` scope opt-out, slots
+- `references/templates.md` — `html` / `svg` semantics, every Datastar attribute usable inside Rocket, `data-if` / `data-for` directives, `$$` rewriting, reading page-globals, the `__root` attribute-key opt-out, slots
 - `references/lifecycle.md` — `setup` vs `onFirstRender` vs `render`, `renderOnPropChange` semantics, disconnect ordering
 - `references/examples.md` — worked components for each common pattern

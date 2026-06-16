@@ -12,7 +12,7 @@ Read-only-ish snapshot of the codec-normalized props at setup time. Reading `pro
 
 Instance-scoped Datastar signal store. Writing `$$.count = 0` creates a reactive signal; reading `$$.count` inside an effect or template subscribes to it. Each component instance has its own `$$`.
 
-Inside templates, `$$count` is auto-rewritten so each instance sees its own value. To reference a *page-global* signal from inside a Rocket template, append `__root`: `$globalThing__root`.
+Inside templates, `$$count` is auto-rewritten (to a `$._rocket...` path) so each instance sees its own value. To reference a *page-global* signal from inside a Rocket template, just use single `$` directly — `data-text="$globalThing"`. Rocket only rewrites `$$`, so a single-`$` signal already resolves to page scope; there is no `__root` suffix for expressions (see `references/templates.md`).
 
 ### `$`
 

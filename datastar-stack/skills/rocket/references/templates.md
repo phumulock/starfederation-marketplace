@@ -115,21 +115,34 @@ Alias + index:
 
 The iterated value can be any expression: `data-for="x in $$items.filter(i => i.active)"`.
 
-## Scope rewriting and the `__root` opt-out
+## Scope rewriting, page-globals, and the `__root` opt-out
 
-Inside a Rocket template, **`$$signal` is rewritten to be instance-scoped**. The mechanism is part of how Rocket parses templates — at render time, each `$$name` becomes a unique reference to *this* component's signal store.
+Inside a Rocket template, **only `$$signal` (double-dollar) is rewritten to be instance-scoped**. At render time each `$$name` becomes a path under `$._rocket` — e.g. for `<demo-counter id="inventory-panel">`, `data-text="$$count"` is rewritten to `data-text="_rocket.demo_counter.inventory_panel.count"`. The instance segment comes from the host element's `id` (normalized to a path-safe identifier); with no `id`, Rocket generates a sequential fallback. In your own code you always write `$$count`, never the rewritten `_rocket...` path.
 
-To reference a **page-global** signal (anything in `$`, including signals defined by `data-signals` at the page level), append `__root` to the name:
+**A single-`$` global signal is left untouched.** So to read a page-global (anything in `$`, including signals defined by `data-signals` at the page level) from inside a Rocket template, just write it directly — no suffix:
 
 ```html
 <!-- Read a global theme signal from inside a Rocket component -->
-<div data-class:dark="$theme__root === 'dark'">…</div>
+<div data-class:dark="$theme === 'dark'">…</div>
 
-<!-- Bind a global signal -->
-<input data-bind:userQuery__root />
+<!-- Read a global rate -->
+<span data-text="$publishRate"></span>
 ```
 
-The `__root` modifier is the single most common cause of "this signal isn't updating where I expect" bugs. When in doubt: are you trying to read instance state or page state? Pick `$$` or `$…__root` accordingly.
+> **Do not** write `$theme__root` inside an expression. `__root` is **not** an expression suffix — `$theme__root` is read as a signal literally named `theme__root`, which doesn't exist, so it silently renders empty (no error). This is a common false "v1.0.2 bug" report; the fix is to drop `__root` and use plain `$theme`.
+
+### The `__root` attribute-key modifier
+
+`__root` is a separate, narrower feature. It applies only to **signal-name attribute *keys*** on **authored host children inside `open`/`closed` (Shadow DOM) components**. By default Rocket rescopes such children — `data-bind:name` on a child becomes `data-bind:_rocket.my_component.id.name`. That's usually right, but wrong when the child should keep talking to a page-level signal. Putting `__root` on the *key segment* opts that one attribute out:
+
+```html
+<!-- Inside an open/closed wrapper component's authored children -->
+<demo-fieldset>
+  <demo-input data-bind:name__root></demo-input>
+</demo-fieldset>
+```
+
+Rocket strips `__root` and leaves the binding as `data-bind:name` (page scope). It applies to the signal-name attribute families: `data-bind:*__root`, `data-computed:*__root`, `data-indicator:*__root`, `data-ref:*__root`. Use it sparingly — it's an escape hatch for wrapper-style components, and it has no role in `mode: 'light'` (no Shadow DOM, no rescoped children).
 
 ## Slots
 
