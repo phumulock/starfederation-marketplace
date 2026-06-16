@@ -167,6 +167,8 @@ These trip everyone up — internalize them before writing code:
 
 10. **`data-ignore` is recursive.** Marks the entire subtree as Datastar-inert. If you only want to skip the element itself but keep descendants reactive, use `data-ignore__self`.
 
+11. **Don't push imperative server→client pokes that duplicate signal state.** The server owns state and patches it down as **signals**; the UI **reacts** — that's the whole model (Tao #1, #3). So don't have the backend `ExecuteScript` a global function (e.g. `window.doThing && window.doThing(x)`) to drive the UI when the value is *already* in a streamed signal. That's a side-channel that duplicates state and inverts the flow — it's a client-state/imperative habit from React/Vue, not Datastar. **Derive the UI from the signal instead.** (Real example: a flow viz drove dot animations via a per-message `ExecuteScript("window.flowDot(pool)")` even though the server already streamed `localRate`/`remoteRate` signals — the fix was to pace the animation from those signals and delete the global entirely.) `datastar-execute-script` is legitimate for genuinely imperative needs (focus, third-party widget init) — just not as a stand-in for state the signals already carry.
+
 ## When to consult the reference files
 
 The reference files are loaded into context only when needed — don't read them all upfront. Reach for them when:
