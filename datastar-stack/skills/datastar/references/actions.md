@@ -28,7 +28,17 @@ Actions are functions invoked from inside Datastar expressions using `@name(...)
 <button data-on:click="@delete(`/items/${$id}`)">Remove</button>
 ```
 
-All five expect the server to respond with an SSE stream of `datastar-patch-elements` and/or `datastar-patch-signals` events. The connection closes when the server closes it.
+The response drives what happens next — Datastar **branches on the response `Content-Type`**, so an SSE stream is the most capable response, not the only one:
+
+| Response `Content-Type` | What Datastar does |
+|---|---|
+| `text/event-stream` | Processes the SSE stream of `datastar-patch-elements` / `datastar-patch-signals` events. The connection closes when the server closes it. (The common case.) |
+| `text/html` | Morphs the returned top-level elements into the DOM by `id`. Optional `datastar-selector` / `datastar-mode` response headers override the target and merge mode (`outer` default, also `inner`/`replace`/`remove`/`prepend`/`append`/`before`/`after`). |
+| `application/json` | Patches the returned object as signals. |
+| `text/javascript` | Executes the returned script. |
+| `204 No Content` (or any empty success) | Nothing — a fire-and-forget ack. |
+
+So a write that only mutates server state and has nothing to send back can just `return 204` — no SSE handle, no events required. Reach for an SSE stream when you actually need to push elements or signals back.
 
 ### What gets sent
 

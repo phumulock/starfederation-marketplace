@@ -361,6 +361,24 @@ Frontend:
 
 The `$count++` runs synchronously and updates the UI immediately; the `@post` runs after. The server response then patches the authoritative value.
 
+### Fire-and-forget writes — skip the SSE stream
+
+When a handler only mutates server state and has nothing to push back, you don't need `NewSSE` at all. Datastar treats a bare `204 No Content` as a successful no-op (see `actions.md` → response `Content-Type` table), so just ack:
+
+```go
+func setRateHandler(w http.ResponseWriter, r *http.Request) {
+    var s struct{ Rate int `json:"rate"` }
+    if err := datastar.ReadSignals(r, &s); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    engine.SetRate(s.Rate)
+    w.WriteHeader(http.StatusNoContent) // fire-and-forget: nothing to push back
+}
+```
+
+Open an SSE stream only when you actually need to send `datastar-patch-*` events back. Control writes (a slider's `@post`, a button that just flips server state) are plain request/response.
+
 ---
 
 ## Streaming patterns
