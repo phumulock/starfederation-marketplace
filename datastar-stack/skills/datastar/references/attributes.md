@@ -9,6 +9,7 @@ Free-core attributes are listed first. Pro-only attributes are in their own sect
 - [Reactivity & display](#reactivity--display)
 - [Event listeners](#event-listeners)
 - [Lifecycle & escape hatches](#lifecycle--escape-hatches)
+- [Casing](#casing)
 - [Modifier syntax](#modifier-syntax)
 - [Modifier reference](#modifier-reference)
 - [Pro-only attributes](#pro-only-attributes)
@@ -261,6 +262,47 @@ Tells the morph not to overwrite a specific attribute. Crucial for things like `
 <!-- Preserve multiple -->
 <details data-preserve-attr="open class">…</details>
 ```
+
+---
+
+## Casing
+
+HTML attribute **names** are case-insensitive — the browser lowercases them before any JavaScript runs. So the casing you write in an attribute *key* is **not preserved**: `data-bind:ackThreshold` reaches Datastar as `data-bind:ackthreshold`. Datastar reconstructs casing from **hyphens**, and the default differs by attribute family.
+
+| Attribute family | Default key conversion | Example |
+|---|---|---|
+| Signal-defining: `data-bind`, `data-signals`, `data-computed`, `data-ref`, `data-indicator` | **camelCase** — drop each hyphen, uppercase the next letter | `data-signals:my-signal` → `$mySignal`; `data-bind:ack-threshold` → `$ackThreshold` |
+| Everything else: `data-class`, `data-attr`, `data-on`, `data-style` | **kebab-case** | `data-class:text-blue-700` → class `text-blue-700`; `data-attr:aria-label` → attribute `aria-label` |
+
+### The trap
+
+Because the browser already lowercased the key, there are no hyphens left for Datastar to camelCase — a hump you typed by hand is gone for good:
+
+```html
+<!-- WRONG: browser lowercases to data-bind:ackthreshold → binds $ackthreshold (a NEW empty signal), not $ackThreshold -->
+<input type="number" data-bind:ackThreshold />
+
+<!-- RIGHT: the hyphen survives lowercasing, so camel reconstruction yields $ackThreshold -->
+<input type="number" data-bind:ack-threshold />
+```
+
+Attribute **values** *are* case-preserved, so `data-text="$ackThreshold"` reads the real signal. That's the classic symptom: a camelCase-bound input silently shows a stale/empty value (it's wired to `$ackthreshold`) while a sibling `data-text="$ackThreshold"` shows the correct number — two different signals that look identical in source.
+
+> **Rule of thumb:** signal names are **camelCase in expressions** (`$ackThreshold`) and **kebab-case in attribute keys** (`data-bind:ack-threshold`, `data-signals:pin-timeout`).
+
+### `__case` override
+
+Override the per-family default with the `__case` modifier — `.camel`, `.kebab`, `.snake`, `.pascal`:
+
+```html
+<input data-bind:user-name__case.kebab />    <!-- bind the literal signal $user-name, not $userName -->
+<div   data-on:my-event__case.camel="…"></div> <!-- listen for the myEvent DOM event -->
+```
+
+### Other rules
+
+- Signal names **cannot begin with or contain a double underscore** (`__`) — it's the modifier delimiter.
+- camelCase does **not** capitalize the letter after a number; kebab preserves exactly what you wrote in the key.
 
 ---
 
